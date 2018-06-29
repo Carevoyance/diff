@@ -22,6 +22,7 @@
   }
 }(this, function(root) {
   var validKinds = ['N', 'E', 'A', 'D'];
+  var deepEqual = require('deep-equal');
 
   // nodejs compatible on server side and in the browser.
   function inherits(ctor, superCtor) {
@@ -234,16 +235,39 @@
               return getOrderIndependentHash(a) - getOrderIndependentHash(b);
             });
           }
-          i = rhs.length - 1;
-          j = lhs.length - 1;
-          while (i > j) {
-            changes.push(new DiffArray(currentPath, i, new DiffNew(undefined, rhs[i--])));
+
+          // Look for items in each array that don't have a match.
+          var unmatchedLhs = [];
+          var unmatchedRhs = new Array(rhs.length);
+          for (var ind = 0; ind < rhs.length; ind++) {
+            unmatchedRhs[ind] = ind;
           }
-          while (j > i) {
-            changes.push(new DiffArray(currentPath, j, new DiffDeleted(undefined, lhs[j--])));
+
+          for (i = 0; i < lhs.length; i++) {
+            var lhsObj = lhs[i];
+            var matched = false;
+            for (j = 0; j < unmatchedRhs.length; j++) {
+              var rhsObj = rhs[unmatchedRhs[j]];
+              if (deepEqual(lhsObj, rhsObj, { strict: true })) {
+                unmatchedRhs.splice(j, 1);
+                matched = true;
+                break;
+              }
+            }
+
+            if (!matched) {
+              unmatchedLhs.push(i);
+            }
           }
-          for (; i >= 0; --i) {
-            deepDiff(lhs[i], rhs[i], changes, prefilter, currentPath, i, stack, orderIndependent);
+
+          for (i = unmatchedLhs.length - 1; i >= 0; i--) {
+            ind = unmatchedLhs[i];
+            changes.push(new DiffArray(currentPath, ind, new DiffDeleted(undefined, lhs[ind])));
+          }
+
+          for (i = unmatchedRhs.length - 1; i >= 0; i--) {
+            ind = unmatchedRhs[i];
+            changes.push(new DiffArray(currentPath, ind, new DiffNew(undefined, rhs[ind])));
           }
         } else {
           var akeys = Object.keys(lhs);

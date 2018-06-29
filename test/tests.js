@@ -329,7 +329,7 @@
       it('shows the property is changed when compared to an object that has value', function () {
         var diff = deep.diff(nestedOne, nestedTwo);
         expect(diff).to.be.ok();
-        expect(diff.length).to.be(3);
+        expect(diff.length).to.be(4);
       });
 
       it('shows the property as added when compared to an empty object on left', function () {
@@ -353,23 +353,18 @@
           expect(result.levelOne.levelTwo).to.eql('another value');
         });
 
-        it('has result with array object values', function () {
-          var result = {};
-
-          deep.applyChange(result, nestedTwo, diff[2]);
-          expect(result.arrayOne).to.be.ok();
-          expect(result.arrayOne).to.be.an('array');
-          expect(result.arrayOne[0]).to.be.ok();
-          expect(result.arrayOne[0].objValue).to.be.ok();
-          expect(result.arrayOne[0].objValue).to.equal('new value');
-        });
-
-        it('has result with added array objects', function () {
+        it('has result with array values', function () {
           var result = {};
 
           deep.applyChange(result, nestedTwo, diff[1]);
+          deep.applyChange(result, nestedTwo, diff[2]);
+          deep.applyChange(result, nestedTwo, diff[3]);
           expect(result.arrayOne).to.be.ok();
           expect(result.arrayOne).to.be.an('array');
+          expect(result.arrayOne.length).to.be(2);
+          expect(result.arrayOne[0]).to.be.ok();
+          expect(result.arrayOne[0].objValue).to.be.ok();
+          expect(result.arrayOne[0].objValue).to.equal('new value');
           expect(result.arrayOne[1]).to.be.ok();
           expect(result.arrayOne[1].objValue).to.be.ok();
           expect(result.arrayOne[1].objValue).to.equal('more value');
@@ -377,58 +372,90 @@
       });
     });
 
-    describe('regression test for bug #10, ', function () {
-      var lhs = {
-        id: 'Release',
-        phases: [{
-          id: 'Phase1',
-          tasks: [{
-            id: 'Task1'
-          }, {
-            id: 'Task2'
-          }]
-        }, {
-          id: 'Phase2',
-          tasks: [{
-            id: 'Task3'
-          }]
-        }]
-      };
-      var rhs = {
-        id: 'Release',
-        phases: [{
-          // E: Phase1 -> Phase2
-          id: 'Phase2',
-          tasks: [{
-            id: 'Task3'
-          }]
-        }, {
-          id: 'Phase1',
-          tasks: [{
-            id: 'Task1'
-          }, {
-            id: 'Task2'
-          }]
-        }]
-      };
+    describe('array changes', function() {
+      it('detects no difference in identical arrays', function() {
+        var lhs = [ { a: 5 }, { b: 6 } ];
+        var rhs = [ { a: 5 }, { b: 6 } ];
+        var differences = deep.diff(lhs, rhs);
 
-      describe('differences in nested arrays are detected', function () {
-        var diff = deep.diff(lhs, rhs);
-
-        // there should be differences
-        expect(diff).to.be.ok();
-        expect(diff.length).to.be(6);
-
-        it('differences can be applied', function () {
-          var applied = deep.applyDiff(lhs, rhs);
-
-          it('and the result equals the rhs', function () {
-            expect(applied).to.eql(rhs);
-          });
-
-        });
+        expect(differences).to.be.an('undefined');
       });
 
+      it('detects no difference in arrays identical except for ordering', function() {
+        var lhs = [{ a: 5 }, { b: 6 }];
+        var rhs = [{ b: 6 }, { a: 5 }];
+        var differences = deep.diff(lhs, rhs);
+
+        expect(differences).to.be.an('undefined');
+      });
+
+      it('detects added values at the beginning', function() {
+        var lhs = [{ a: 5 }, { b: 6 }];
+        var rhs = [{ a: 6 }, { b: 6 }, { a: 5 }];
+        var differences = deep.diff(lhs, rhs);
+
+        expect(differences).to.be.ok();
+        expect(differences.length).to.be(1);
+        expect(differences[0]).to.eql({ index: 0, kind: 'A', item: { kind: 'N', rhs: { a: 6 } } });
+      });
+
+      it('detects added values at the end', function() {
+        var lhs = [{ a: 5 }, { b: 6 }];
+        var rhs = [{ b: 6 }, { a: 5 }, { a: 6 }];
+        var differences = deep.diff(lhs, rhs);
+
+        expect(differences).to.be.ok();
+        expect(differences.length).to.be(1);
+        expect(differences[0]).to.eql({ index: 2, kind: 'A', item: { kind: 'N', rhs: { a: 6 } } });
+      });
+
+      it('detects deleted values at the beginning', function() {
+        var lhs = [{ a: 5 }, { b: 6 }];
+        var rhs = [{ b: 6 }];
+        var differences = deep.diff(lhs, rhs);
+
+        expect(differences).to.be.ok();
+        expect(differences.length).to.be(1);
+        expect(differences[0]).to.eql({ index: 0, kind: 'A', item: { kind: 'D', lhs: { a: 5 } } });
+      });
+
+      it('detects deleted values at the end', function() {
+        var lhs = [{ a: 5 }, { b: 6 }];
+        var rhs = [{ a: 5 }];
+        var differences = deep.diff(lhs, rhs);
+
+        expect(differences).to.be.ok();
+        expect(differences.length).to.be(1);
+        expect(differences[0]).to.eql({ index: 1, kind: 'A', item: { kind: 'D', lhs: { b: 6 } } });
+      });
+
+      it('treats nested values as atomic objects', function() {
+        var lhs = [ { a: 7 }, { a: 5 }, { a: 10 } ];
+        var rhs = [ { a: 7 }, { a: 6 }, { a: 10 } ];
+        var differences = deep.diff(lhs, rhs);
+
+        expect(differences).to.be.ok();
+        expect(differences.length).to.be(2);
+        expect(differences[0]).to.eql({ index: 1, kind: 'A', item: { kind: 'D', lhs: { a: 5 }} });
+        expect(differences[1]).to.eql({ index: 1, kind: 'A', item: { kind: 'N', rhs: { a: 6 } } });
+      });
+
+      it('detects multiple changes', function() {
+        var lhs = [ 1, 2, 3, 4, 5, 6];
+        var rhs = [ 7, 4, 8, 9, 2, 10];
+        var differences = deep.diff(lhs, rhs);
+
+        expect(differences).to.be.ok();
+        expect(differences.length).to.be(8);
+        expect(differences[0]).to.eql({ index: 5, kind: 'A', item: { kind: 'D', lhs: 6 } });
+        expect(differences[1]).to.eql({ index: 4, kind: 'A', item: { kind: 'D', lhs: 5 } });
+        expect(differences[2]).to.eql({ index: 2, kind: 'A', item: { kind: 'D', lhs: 3 } });
+        expect(differences[3]).to.eql({ index: 0, kind: 'A', item: { kind: 'D', lhs: 1 } });
+        expect(differences[4]).to.eql({ index: 5, kind: 'A', item: { kind: 'N', rhs: 10 } });
+        expect(differences[5]).to.eql({ index: 3, kind: 'A', item: { kind: 'N', rhs: 9 } });
+        expect(differences[6]).to.eql({ index: 2, kind: 'A', item: { kind: 'N', rhs: 8 } });
+        expect(differences[7]).to.eql({ index: 0, kind: 'A', item: { kind: 'N', rhs: 7 } });
+      });
     });
 
     describe('regression test for bug #35', function () {

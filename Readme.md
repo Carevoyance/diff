@@ -6,6 +6,8 @@
 
 **deep-diff** is a javascript/node.js module providing utility functions for determining the structural differences between objects and includes some utilities for applying differences across objects.
 
+This fork provides more intuitive handling of array insertions and deletions, with the caveat that a changed item in an array is now treated as a deletion and an insertion. It also currently only works with Node.js or other systems that support including modules via `require`.
+
 ## Install
 
 ```bash
